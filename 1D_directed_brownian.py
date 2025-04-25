@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 #Implements reflectibe boundary conditions.
 def reflective_bc(delta):
     if v0 == 0:
-        return 0
+        return delta
 
     diff = abs(delta)//v0
     delta += -1*np.sign(delta)*abs(diff)*v0 #Periodic boundary conditions
-    delta *= 1-2*(abs(diff)%2)
+    #delta *= 1-2*(abs(diff)%2) #Reflection?
     return delta
 
 #Updates the position of the particle
@@ -21,14 +21,17 @@ def update_r(r_old, del_old):
     return (ri, deli)
 
 
-T = 12**3
+T = 10**3
 dt = 0.5
-N = 11**3
+N = 5
 
-v0 = 10.0 #Directed velocity, will describe self-propelled motion
-tau_v = [1,2,5,100,400,1600,6400,25600]
+v0 = 0.0 #Directed velocity, will describe self-propelled motion
+tau_v = [100]
+i = 0
 
 for tau in tau_v:
+    print("Running for tau = ", tau)
+    print(str(100*i/len(tau_v)), "% done." )
     v1 = (v0*dt)/tau #Random drift velocity, amplitude of random displacement
 
     r0 = np.zeros(N)
@@ -37,7 +40,6 @@ for tau in tau_v:
     T_v = np.arange(0, T,step = dt)
     pos_v = np.array([r0]) #Positions of particles
     del_v = np.array([del0]) #Ramdon fluctuations of particles
-    #true_brownian = [r0] #True random brownian motion (DEBUG)
     posdiff_v = np.array([r0]) #For MSD WIP
 
     r_old = r0
@@ -58,6 +60,7 @@ for tau in tau_v:
             r_old, del_old = update_r(r_old, del_old)
             pos_v = np.append(pos_v, [r_old], axis = 0)
             del_v = np.append(del_v, [del_old], axis = 0)
+    i += 1
 
 plt.xscale('log')
 plt.yscale('log')
@@ -77,14 +80,15 @@ plt.xlabel("Time [t]")
 plt.ylabel("Position 1D [x]")
 plt.show()'''
 
-'''for p in range(N):
+sel_p = np.array([rnd.randint(0,N) for _ in range(100)])
+for p in sel_p:
     plt.plot(T_v, pos_v[:, p])
 #plt.axline((0,r0), slope = del0, color = "red", lw = 1, label ="Direction of dir. movement.")
 plt.xlabel("Time [t]")
 plt.ylabel("Position 1D [x]")
 #plt.legend()
 plt.title("1D directed Brownian motion of "+ str(N) + " particles")
-plt.show()'''
+plt.show()
 
 '''plt.plot(T_v, del_v[:, 0], marker='.')
 plt.xlabel("Time [t]")
