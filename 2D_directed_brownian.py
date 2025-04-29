@@ -1,10 +1,12 @@
 import numpy as np
 import random as rnd
+import math
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 #2D directed random walk of N particles
 
-#Non-directed brownian motion, no boundary conditions, as control.
+#Non-directed brownian motion, no boundary conditions, as control. WIP
 def true_brownian(v1):
     r0b = np.array([(0,0) for _ in range(N)])
     r_v = np.array([r0b])
@@ -40,9 +42,6 @@ def p_acceptance(r_old, r_new):
         for k in range(N):
             if (np.sqrt((r_new[p,0] - r_old[k,0])**2 + (r_new[p,1] - r_old[k,1])**2)) < 2*sigma:
                 if k != p:
-                    print("old movement ", r_old[p])
-                    print("new movement ", r_new[p])
-                    print("could collide with  ", r_old[k])
                     r_new[p] = r_old[p]
     return r_new
 
@@ -54,19 +53,61 @@ def update_r(r_old, del_old):
     #print("position after update: ", ri)
     return (r_new, del_new)
 
+#Initializes N particles with radius sigma such that they are not overlapped
 def initialize_r0():
-    
+    r0_v = np.random.rand(1,2)*Lx
+    for i in range(N-1):
+        placed = False
+        while not placed:
+            r0_try = np.random.rand(1,2)*Lx
+            if all(math.hypot(r0_v[p,0]-r0_try[0,0], r0_v[p,1]-r0_try[0,1]) >= sigma*2 for p in range(len(r0_v))):
+                r0_v = np.append(r0_v, r0_try, axis = 0)
+                placed = True
+    print(r0_v.shape)
+    return r0_v
 
+#Detects if particle| is at boundary and implements periodic boundary conditions
+def periodic_bc(r_new):
+    #Detect boundary crossing and implement PBC
+    for p in range(N):
+        for i in range(2):
+            if r_new[p,i] < 0:
+                r_new[p,i] += Lx
+            elif r_new[p,i] > Lx:
+                r_new[p,i] -= Lx
+
+    return r_new
+
+def animate_positions(r_v):
+    fig, ax = plt.subplots()
+    ax.set_xlim(0, Lx)
+    ax.set_ylim(0, Lx)
+    ax.set_aspect('equal', adjustable = "box")
+
+    # Initialize circle artists
+    circles = [plt.Circle((0, 0), sigma, color='blue', alpha=0.6) for _ in r_v[0]]
+    for c in circles:
+        ax.add_patch(c)
+
+    def update(frame_idx):
+        positions = r_v[frame_idx]
+        for circle, pos in zip(circles, positions):
+            circle.center = pos
+        return circles
+
+    ani = animation.FuncAnimation(fig, update, frames=len(r_v), interval=30, blit=True)
+    plt.show()
+    return ani
 
 #Simulation variables
-T  = 1000 #Total simulation time
+T  = 10 #Total simulation time
 dt = 0.1 #dt for T
-N = 50 #Number of particles
+N = 200 #Number of particles
 sigma = 1 #Particle radius and system length scale
 Lx = 50*sigma #Box size
 
 v0 = 1.0 #Directed velocity, will describe self-propelled motion
-tau_v = [2.1] #Persistance time
+tau_v = [1.0] #Persistance time
 
 #Figure settings
 fig, ax = plt.subplots()
@@ -78,7 +119,7 @@ plt.gca().set_aspect('equal', adjustable='box')
 for tau in tau_v:
     v1 = (v0*dt)/np.sqrt(tau) #Random drift velocity, amplitude of random displacement
 
-    r0 = np.random.rand(N,2) * Lx #Random initial conditions CHECK THEY ARENT OVERLAPPING!!
+    r0 = initialize_r0() #Initializes particles (or hard disks) without overlap
 
     del0 = reflective_bc(np.random.uniform(-1,1,(N,2))*v0) #Random initial delta
 
@@ -92,42 +133,42 @@ for tau in tau_v:
     r_old = r0
     del_old = del0
 
-    for p in r0:
-        circles = ax.add_artist(plt.Circle((p[0], p[1]), sigma, fill= False))
-
+    #shows initial position
+    circles = [plt.Circle(p, sigma, color='blue', alpha=0.6) for p in r0]
+    for circle in circles:
+        ax.add_patch(circle)
     plt.show()
-    #scatter = ax.scatter(r0[:, 0], r0[:, 1], marker='o', s=np.pi*sigma**2)
 
     if N > 1:
         for t in range(len(T_v)-1):
+            #Positions are proposed and saved as r_new.
             r_new, del_new = update_r(r_old, del_old)
 
+            #If a particle is out of bounds, forces periodic boundary conditions
+            r_new = periodic_bc(r_new)
+
+            #The new proposed positions are compared to the old positions. Positions are accepted sequentially if no overlap happens
+            #Done at the end!
             r_new = p_acceptance(r_old, r_new)
 
-            #Detect boundary crossing and implement PBC
-            for p in range(N):
-                for i in range(2):
-                    if r_new[p,i] < 0:
-                        r_new[p,i] += Lx
-                    elif r_new[p,i] > Lx:
-                        r_new[p,i] -= Lx
-
-            #Saving of particle positions
+            #Saving of particle positions in position vectors r_v and old
             r_v = np.append(r_v, [r_new], axis = 0)
             del_v = np.append(del_v, [del_new], axis = 0)
 
             #posdiff_v = np.append(posdiff_v, [(r0 - r_old)**2], axis = 0)
 
             #Plotting positions as animation (fun)
-            circles.set_center(r_new)
-            plt.pause(0.001)
+
 
             r_old = r_new
             del_old = del_new
 
-        plt.show()
+
         #msd_v = np.average(posdiff_v, axis = 1, keepdims= True) #MSD of particle ensemble
         #plt.plot(msd_v, label = "$𝜏 = $ " + str(tau))
+        ani = animate_positions(r_v)
+
+        ani.save("tau_"+str(tau)+"_v0_"+str(v0)+"_dt_"+str(dt)+".gif", writer="pillow", fps=30, dpi=200)
 
     else:
         for t in range(len(T_v)-1):
